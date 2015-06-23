@@ -17,6 +17,17 @@ type Article struct {
 	Content string
 }
 
+type Contact struct {
+	Id int64 `db:"contact_id"`
+	Created int64
+	Name string
+	Title string
+	Company string
+	Email string
+	Message string
+	Phone int64
+}
+
 var dbmap = initDb()
 
 func initDb() gorp.DbMap {
@@ -24,6 +35,7 @@ func initDb() gorp.DbMap {
 	checkErr(err, "sql.Open faild")
 	dbmap := gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
 	dbmap.AddTableWithName(Article{}, "articles").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Contact{}, "contacts").SetKeys(true, "Id")
 	err = dbmap.CreateTablesIfNotExists()
 	checkErr(err, "Create tables failed")
 	return dbmap
@@ -92,6 +104,73 @@ func getArticle(article_id int) Article {
 	return article
 }
 
+func ContactsList(c *gin.Context) {
+	var contacts []Contact
+	_, err := dbmap.Select(&contacts, "select * from contacts order by contact_id")
+	checkErr(err, "Select Failed")
+	content := gin.H{"records": contacts,}
+	c.JSON(200, content)
+}
+
+func ContactPost(c *gin.Context) {
+	var json Contact
+
+	c.Bind(&json)
+	contact := createContact(json.Name, json.Title, json.Company, json.Email, json.Message, json.Phone)
+	if contact.Title == json.Title {
+		content := gin.H{
+			"result": "Success",
+			"name": contact.Name,
+			"title": contact.Title,
+			"comapany": contact.Company,
+			"email": contact.Email,
+			"message": contact.Message,
+			"phone": contact.Phone,
+		}
+		c.JSON(201, content)
+	} else {
+		c.JSON(500, gin.H{"result": "An error occured"})
+	}
+}
+
+func ContactsDetail(c *gin.Context) {
+	contact_id := c.Params.ByName("id")
+	c_id, _ := strconv.Atoi(contact_id)
+	contact := getContact(c_id)
+	content := gin.H{
+		"name": contact.Name,
+		"title": contact.Title,
+		"comapany": contact.Company,
+		"email": contact.Email,
+		"message": contact.Message,
+		"phone": contact.Phone,
+	}
+	c.JSON(200, content)
+}
+
+func createContact(name, title, company, email, message string, phone int64) Contact {
+	contact := Contact{
+		Created: time.Now().UnixNano(),
+		Name: name,
+		Title: title,
+		Company: company,
+		Email: email,
+		Message: message,
+		Phone: phone,
+	}
+
+	err := dbmap.Insert(&contact)
+	checkErr(err, "Insert Failed")
+	return contact
+}
+
+func getContact(contact_id int) Contact {
+	contact := Contact{}
+	err := dbmap.SelectOne(&contact, "select * from contacts where contact_id=?", contact_id)
+	checkErr(err, "SelectOne Failed")
+	return contact
+}
+
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Content-Type", "application/json")
@@ -116,6 +195,10 @@ func main() {
 	app.GET("/articles", ArticlesList)
 	app.POST("/articles", ArticlePost)
 	app.GET("/articles/:id", ArticlesDetail)
+
+	app.GET("/contacts", ContactsList)
+	app.POST("/contacts", ContactPost)
+	app.GET("/contacts/:id", ContactsDetail)
 
 	app.Run(":8000")
 }
