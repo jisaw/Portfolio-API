@@ -28,6 +28,13 @@ type Contact struct {
 	Phone int64
 }
 
+type Login struct {
+	Id int64 `db:"login_id"`
+	Created int64
+	Username string
+	Password string
+}
+
 var dbmap = initDb()
 
 func initDb() gorp.DbMap {
@@ -36,6 +43,7 @@ func initDb() gorp.DbMap {
 	dbmap := gorp.DbMap{Db: db, Dialect: gorp.SqliteDialect{}}
 	dbmap.AddTableWithName(Article{}, "articles").SetKeys(true, "Id")
 	dbmap.AddTableWithName(Contact{}, "contacts").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Login{}, "logins").SetKeys(true, "Id")
 	err = dbmap.CreateTablesIfNotExists()
 	checkErr(err, "Create tables failed")
 	return dbmap
@@ -171,6 +179,45 @@ func getContact(contact_id int) Contact {
 	return contact
 }
 
+func LoginPost(c *gin.Context) {
+	var json Login
+
+	c.Bind(&json)
+	if json.Create == true{
+		login := createLogin(json.Username, json.Password)
+	} else {
+		login := checkLogin(json.Username, json.Password)
+		if login == true {
+			c.JSON(200, gin.H{"result": "success"})
+			} else {
+				c.JSON(500, gin.H{"result": "error"})
+			}
+		}
+}
+
+func checkLogin(username, password string) bool {
+	auth := Login{}
+	err := dbmap.SelectOne(&auth, "select * from logins where username=?", username)
+	checkErr(err, "selectOne Failed")
+	if password == auth.Password {
+		return true
+	} else {
+		return false
+	}
+}
+
+func createLogin(username, password string) Login {
+	login := Login{
+		Created: time.Now().UnixNano(),
+		Username: username,
+		Password: password
+	}
+
+	err := dbmap.Insert(&login)
+	checkErr(err, "Insert Failed")
+	return login
+}
+
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Content-Type", "application/json")
@@ -199,6 +246,8 @@ func main() {
 	app.GET("/contacts", ContactsList)
 	app.POST("/contacts", ContactPost)
 	app.GET("/contacts/:id", ContactsDetail)
+
+	app.POST("/login", LoginPost)
 
 	app.Run(":8000")
 }
