@@ -33,6 +33,7 @@ type Login struct {
 	Created int64
 	Username string
 	Password string
+	Create bool
 }
 
 var dbmap = initDb()
@@ -51,7 +52,7 @@ func initDb() gorp.DbMap {
 
 func checkErr(err error, msg string) {
 	if err != nil {
-		log.Fatalln(msg, err)//.(*errors.Error).ErrorStack())
+		log.Printf(msg, err)//.(*errors.Error).ErrorStack())
 	}
 }
 
@@ -184,7 +185,7 @@ func LoginPost(c *gin.Context) {
 
 	c.Bind(&json)
 	if json.Create == true{
-		login := createLogin(json.Username, json.Password)
+		createLogin(json.Username, json.Password)
 	} else {
 		login := checkLogin(json.Username, json.Password)
 		if login == true {
@@ -210,7 +211,7 @@ func createLogin(username, password string) Login {
 	login := Login{
 		Created: time.Now().UnixNano(),
 		Username: username,
-		Password: password
+		Password: password,
 	}
 
 	err := dbmap.Insert(&login)
